@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance — Face Recognition</title>
+    <meta name="description" content="AI-powered face recognition attendance system with webcam and CCTV camera support.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f0f;
+            color: #F3F4F6;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        /* ── HEADER ── */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            padding: 22px 30px;
+            border-radius: 14px;
+            border: 1px solid #2a2a4a;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,193,7,0.05);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .header h1 {
+            color: #FFC107;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .header-sub {
+            color: #6B7280;
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        /* ── NAV ── */
+        .nav-menu {
+            background: #1a1a1a;
+            padding: 12px 15px;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+            margin-bottom: 22px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .nav-btn {
+            padding: 10px 20px;
+            background: transparent;
+            color: #9CA3AF;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.25s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .nav-btn:hover { background: #252525; color: #F3F4F6; }
+        .nav-btn.active { background: #FFC107; color: #0f0f0f; border-color: #FFC107; }
+
+        /* ── LAYOUT ── */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 3fr 1fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: #1a1a1a;
+            padding: 22px;
+            border-radius: 14px;
+            border: 1px solid #2a2a2a;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: #FFC107;
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid #2a2a2a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* ── SOURCE SWITCHER ── */
+        .source-switcher {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            background: #111;
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid #2a2a2a;
+        }
+        .source-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: #6B7280;
+            background: transparent;
+        }
+        .source-btn:hover { color: #D1D5DB; background: #1e1e1e; }
+        .source-btn.active {
+            background: #FFC107;
+            color: #0f0f0f;
+            box-shadow: 0 4px 14px rgba(255,193,7,0.3);
+        }
+        .source-btn.active-cctv {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(29,78,216,0.4);
+        }
+
+        /* ── CAMERA SELECTOR (webcam) ── */
+        .webcam-selector {
+            margin-bottom: 14px;
+            animation: fadeSlide 0.25s ease;
+        }
+        .webcam-selector label {
+            display: block;
+            color: #6B7280;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .webcam-selector select {
+            width: 100%;
+            background: #111;
+            color: #D1D5DB;
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 13px;
+            padding: 9px 12px;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .webcam-selector select:focus { border-color: #FFC107; }
+
+        /* ── VIDEO CONTAINER ── */
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 16px;
+            aspect-ratio: 16/9;
+            border: 1px solid #2a2a2a;
+        }
+
+        #webcamVideo {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+        #cctvFeed {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: none;
+        }
+
+        /* live badge */
+        .live-badge {
+            position: absolute;
+            top: 12px; left: 12px;
+            background: rgba(239,68,68,0.85);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(239,68,68,0.5);
+            transition: all 0.3s ease;
+        }
+        .live-badge.live-green {
+            background: rgba(34,197,94,0.85);
+            border-color: rgba(34,197,94,0.5);
+        }
+        .live-badge.live-blue {
+            background: rgba(29,78,216,0.85);
+            border-color: rgba(29,78,216,0.5);
+        }
+        .recording-dot {
+            width: 8px; height: 8px;
+            background: white;
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* CCTV offline overlay */
+        .cctv-offline {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.85);
+            gap: 12px;
+            display: none;
+        }
+        .cctv-offline i { font-size: 42px; color: #ef4444; }
+        .cctv-offline p { color: #9CA3AF; font-size: 14px; text-align: center; max-width: 280px; }
+        .cctv-offline .retry-btn {
+            padding: 8px 20px;
+            background: #1d4ed8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .cctv-offline .retry-btn:hover { background: #1e40af; transform: translateY(-1px); }
+
+        /* ── SCAN BUTTON ── */
+        .scan-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-scan {
+            width: 100%;
+            max-width: 360px;
+            padding: 16px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            background: #FFC107;
+            color: #0f0f0f;
+            box-shadow: 0 4px 20px rgba(255,193,7,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            letter-spacing: 0.3px;
+        }
+        .btn-scan:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(255,193,7,0.45); }
+        .btn-scan:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-scan.cctv-mode {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(29,78,216,0.4);
+        }
+        .btn-scan.cctv-mode:hover { box-shadow: 0 8px 28px rgba(29,78,216,0.55); }
+
+        /* result box */
+        .result-box {
+            width: 100%;
+            max-width: 360px;
+            padding: 16px 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            display: none;
+            animation: fadeSlide 0.3s ease;
+        }
+        .result-success { background: rgba(72,187,120,0.15); color: #68d391; border: 1px solid rgba(104,211,145,0.4); }
+        .result-error   { background: rgba(245,101,101,0.15); color: #fc8181; border: 1px solid rgba(252,129,129,0.4); }
+
+        @keyframes fadeSlide {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── LOGS ── */
+        .log-container { max-height: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-track { background: #111; }
+        .log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .log-empty { text-align: center; color: #4B5563; padding: 30px 20px; font-size: 13px; }
+
+        .log-item {
+            padding: 12px 14px;
+            background: #111;
+            border-left: 3px solid #FFC107;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+            animation: fadeSlide 0.3s ease;
+        }
+        .log-success { border-left-color: #68d391; }
+        .log-error   { border-left-color: #fc8181; }
+        .log-text { font-size: 13px; font-weight: 700; color: #F3F4F6; }
+        .log-msg  { font-size: 11px; color: #6B7280; margin-top: 3px; }
+        .log-time { font-size: 11px; color: #4B5563; white-space: nowrap; }
+
+        /* ── STATUS BAR ── */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 8px;
+            border: 1px solid #2a2a2a;
+            background: #111;
+            margin-bottom: 14px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #4B5563;
+            flex-shrink: 0;
+        }
+        .status-dot.online  { background: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+        .status-dot.offline { background: #ef4444; }
+
+        @media (max-width: 900px) {
+            .content-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- HEADER -->
+        <div class="header">
+            <div>
+                <h1><i class="fa-solid fa-id-badge"></i> Smart Face Attendance</h1>
+                <div class="header-sub">Switch between webcam &amp; CCTV — scan any face to mark attendance</div>
+            </div>
+        </div>
+
+        <!-- NAV -->
+        <nav class="nav-menu">
+            <a href="dashboard.html" class="nav-btn">Dashboard</a>
+            <a href="cctv.html" class="nav-btn">CCTV Feeds</a>
+            <a href="face_registration.html" class="nav-btn">Register Faces</a>
+            <a href="attendance.html" class="nav-btn">Attendance</a>
+            <a href="workers.html" class="nav-btn">Workers</a>
+            <a href="face-recognition.html" class="nav-btn active">Face Attendance</a>
+        </nav>
+
+        <!-- MAIN GRID -->
+        <div class="content-grid">
+
+            <!-- LEFT: Camera + Controls -->
+            <div class="card">
+                <h2><i class="fa-solid fa-camera-retro"></i> Camera Feed</h2>
+
+                <!-- Source Switcher -->
+                <div class="source-switcher">
+                    <button class="source-btn active" id="btnWebcam" onclick="switchSource('webcam')">
+                        <i class="fa-solid fa-camera"></i> Webcam
+                    </button>
+                    <button class="source-btn" id="btnCctv" onclick="switchSource('cctv')">
+                        <i class="fa-solid fa-video"></i> CCTV Camera
+                    </button>
+                </div>
+
+                <!-- Webcam device selector (webcam mode only) -->
+                <div class="webcam-selector" id="webcamSelector">
+                    <label><i class="fa-solid fa-sliders"></i> Select webcam device</label>
+                    <select id="videoSource">
+                        <option value="">Loading cameras...</option>
+                    </select>
+                </div>
+
+                <!-- CCTV status bar (cctv mode only) -->
+                <div class="status-bar" id="cctvStatusBar" style="display:none;">
+                    <div class="status-dot" id="cctvDot"></div>
+                    <span id="cctvStatusText">Connecting to CCTV server…</span>
+                </div>
+
+                <!-- Video Container -->
+                <div class="video-container">
+                    <!-- Webcam stream -->
+                    <video id="webcamVideo" autoplay muted playsinline></video>
+
+                    <!-- CCTV MJPEG stream -->
+                    <img id="cctvFeed" alt="CCTV Feed" crossorigin="anonymous">
+
+                    <!-- CCTV offline overlay -->
+                    <div class="cctv-offline" id="cctvOffline">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <p>CCTV stream not reachable.<br>Make sure <strong>camera_stream.py</strong> is running on port 5002.</p>
+                        <button class="retry-btn" onclick="connectCctv()"><i class="fa-solid fa-rotate-right"></i> Retry Connection</button>
+                    </div>
+
+                    <!-- Live Badge -->
+                    <div class="live-badge" id="liveBadge">
+                        <div class="recording-dot"></div>
+                        <span id="liveText">STANDBY</span>
+                    </div>
+                </div>
+
+                <canvas id="snapshotCanvas" style="display:none;"></canvas>
+
+                <!-- Scan Button -->
+                <div class="scan-controls">
+                    <button class="btn-scan" id="scanBtn" onclick="scanFace()">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <span id="scanBtnText">Mark Attendance (Scan Face)</span>
+                    </button>
+                    <div class="result-box" id="resultBox"></div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Logs -->
+            <div class="card">
+                <h2><i class="fa-solid fa-clipboard-list"></i> Today's Logs</h2>
+                <div class="log-container" id="activityLog">
+                    <div class="log-empty">
+                        <i class="fa-solid fa-user-clock" style="font-size:28px; margin-bottom:10px; display:block; color:#374151;"></i>
+                        No check-ins yet.<br>Step up to scan!
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /content-grid -->
+    </div><!-- /container -->
+
+    <!-- AUTH -->
+    <script>
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('token');
+            if (!token) { window.location.href = 'login.html'; }
+        });
+    </script>
+
+    <!-- MAIN LOGIC -->
+    <script>
+        // Port 5002 = camera_stream.py (clean raw feed, no PPE detection)
+        // Port 5001 = intelligent_cctv.py (PPE detection overlays) — not used here
+        const CCTV_URL   = 'http://127.0.0.1:5002';
+        const STREAM_URL = CCTV_URL + '/video_feed';
+
+        const webcamVideo  = document.getElementById('webcamVideo');
+        const cctvFeed     = document.getElementById('cctvFeed');
+        const cctvOffline  = document.getElementById('cctvOffline');
+        const canvas       = document.getElementById('snapshotCanvas');
+        const scanBtn      = document.getElementById('scanBtn');
+        const scanBtnText  = document.getElementById('scanBtnText');
+        const resultBox    = document.getElementById('resultBox');
+        const liveBadge    = document.getElementById('liveBadge');
+        const liveText     = document.getElementById('liveText');
+        const videoSource  = document.getElementById('videoSource');
+        const cctvStatusBar  = document.getElementById('cctvStatusBar');
+        const cctvDot        = document.getElementById('cctvDot');
+        const cctvStatusText = document.getElementById('cctvStatusText');
+        const webcamSelector = document.getElementById('webcamSelector');
+
+        let currentMode   = 'webcam'; // 'webcam' | 'cctv'
+        let currentStream = null;
+        let cctvCheckInterval = null;
+
+        // ══════════════════════════════════════
+        // SOURCE SWITCHER
+        // ══════════════════════════════════════
+        function switchSource(mode) {
+            if (mode === currentMode) return;
+            currentMode = mode;
+
+            const btnWebcam = document.getElementById('btnWebcam');
+            const btnCctv   = document.getElementById('btnCctv');
+
+            hideResult();
+
+            if (mode === 'webcam') {
+                // UI
+                btnWebcam.className = 'source-btn active';
+                btnCctv.className   = 'source-btn';
+                webcamSelector.style.display = '';
+                cctvStatusBar.style.display  = 'none';
+
+                // Video elements
+                webcamVideo.style.display = 'block';
+                cctvFeed.style.display    = 'none';
+                cctvOffline.style.display = 'none';
+                cctvFeed.src = '';
+
+                // Stop CCTV polling
+                if (cctvCheckInterval) { clearInterval(cctvCheckInterval); cctvCheckInterval = null; }
+
+                // Badge
+                liveBadge.className = 'live-badge';
+                liveText.textContent = 'STANDBY';
+
+                // Scan button style
+                scanBtn.className = 'btn-scan';
+                scanBtnText.textContent = 'Mark Attendance (Scan Face)';
+
+                // Start webcam
+                getCameras();
+
+            } else {
+                // UI
+                btnWebcam.className = 'source-btn';
+                btnCctv.className   = 'source-btn active-cctv';
+                webcamSelector.style.display = 'none';
+                cctvStatusBar.style.display  = '';
+
+                // Stop webcam
+                stopWebcam();
+                webcamVideo.style.display = 'none';
+                webcamVideo.srcObject = null;
+
+                // Scan button style
+                scanBtn.className = 'btn-scan cctv-mode';
+                scanBtnText.textContent = 'Mark Attendance (CCTV Scan)';
+
+                // Connect CCTV
+                connectCctv();
+            }
+        }
+
+        // ══════════════════════════════════════
+        // WEBCAM
+        // ══════════════════════════════════════
+        function stopWebcam() {
+            if (currentStream) {
+                currentStream.getTracks().forEach(t => t.stop());
+                currentStream = null;
+            }
+        }
+
+        async function getCameras() {
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+                videoSource.innerHTML = '';
+                videoDevices.forEach((device, i) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${i + 1}`;
+                    videoSource.appendChild(option);
+                });
+
+                if (videoDevices.length > 0) {
+                    startWebcam(videoDevices[0].deviceId);
+                } else {
+                    videoSource.innerHTML = '<option value="">No cameras found</option>';
+                }
+            } catch (err) {
+                console.error('Camera list error:', err);
+                videoSource.innerHTML = '<option value="">Permission denied</option>';
+            }
+        }
+
+        async function startWebcam(deviceId) {
+            stopWebcam();
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: deviceId ? { exact: deviceId } : undefined }
+                });
+                currentStream = stream;
+                webcamVideo.srcObject = stream;
+                liveBadge.className = 'live-badge live-green';
+                liveText.textContent = 'LIVE';
+            } catch (err) {
+                console.error('Webcam error:', err);
+                liveBadge.className = 'live-badge';
+                liveText.textContent = 'ERROR';
+                showResult('Cannot access selected camera. Check permissions.', 'error');
+            }
+        }
+
+        videoSource.onchange = () => startWebcam(videoSource.value);
+
+        // ══════════════════════════════════════
+        // CCTV
+        // ══════════════════════════════════════
+        function connectCctv() {
+            cctvDot.className = 'status-dot';
+            cctvStatusText.textContent = 'Connecting to CCTV server…';
+            cctvOffline.style.display = 'none';
+            liveBadge.className = 'live-badge';
+            liveText.textContent = 'CONNECTING…';
+
+            // Check if the CCTV server is reachable first
+            fetch(CCTV_URL + '/status', { signal: AbortSignal.timeout(3000) })
+                .then(r => {
+                    if (!r.ok) throw new Error('bad status');
+                    return r.json();
+                })
+                .then(() => {
+                    // Server is up — load the MJPEG stream
+                    cctvFeed.style.display = 'block';
+                    cctvFeed.src = STREAM_URL + '?t=' + Date.now(); // cache-bust
+
+                    cctvFeed.onload = () => {
+                        cctvOffline.style.display = 'none';
+                        liveBadge.className = 'live-badge live-blue';
+                        liveText.textContent = 'CCTV LIVE';
+                        cctvDot.className = 'status-dot online';
+                        cctvStatusText.textContent = 'Connected — CCTV stream active';
+                    };
+
+                    cctvFeed.onerror = () => {
+                        showCctvOffline();
+                    };
+
+                    // Periodic health check
+                    if (cctvCheckInterval) clearInterval(cctvCheckInterval);
+                    cctvCheckInterval = setInterval(checkCctvHealth, 8000);
+                })
+                .catch(() => {
+                    showCctvOffline();
+                });
+        }
+
+        function showCctvOffline() {
+            cctvFeed.style.display = 'none';
+            cctvOffline.style.display = 'flex';
+            liveBadge.className = 'live-badge';
+            liveText.textContent = 'OFFLINE';
+            cctvDot.className = 'status-dot offline';
+            cctvStatusText.textContent = 'camera_stream.py offline (port 5002)';
+        }
+
+        function checkCctvHealth() {
+            if (currentMode !== 'cctv') return;
+            fetch(CCTV_URL + '/status', { signal: AbortSignal.timeout(2000) })
+                .then(r => { if (!r.ok) throw new Error(); })
+                .catch(() => { showCctvOffline(); if (cctvCheckInterval) { clearInterval(cctvCheckInterval); cctvCheckInterval = null; } });
+        }
+
+        // ══════════════════════════════════════
+        // SCAN FACE
+        // ══════════════════════════════════════
+        async function scanFace() {
+            hideResult();
+            const context = canvas.getContext('2d');
+
+            if (currentMode === 'webcam') {
+                if (!currentStream || !webcamVideo.videoWidth) {
+                    showResult('Webcam not ready. Please wait for the camera to start.', 'error');
+                    return;
+                }
+                canvas.width  = webcamVideo.videoWidth;
+                canvas.height = webcamVideo.videoHeight;
+                // Draw mirrored (undo the CSS mirror so DeepFace sees a normal face)
+                context.save();
+                context.translate(canvas.width, 0);
+                context.scale(-1, 1);
+                context.drawImage(webcamVideo, 0, 0, canvas.width, canvas.height);
+                context.restore();
+
+            } else {
+                // CCTV mode — draw the img element directly
+                if (!cctvFeed.src || cctvFeed.style.display === 'none') {
+                    showResult('CCTV feed is not connected. Retry the connection first.', 'error');
+                    return;
+                }
+                canvas.width  = cctvFeed.naturalWidth  || cctvFeed.width  || 1280;
+                canvas.height = cctvFeed.naturalHeight || cctvFeed.height || 720;
+                context.drawImage(cctvFeed, 0, 0, canvas.width, canvas.height);
+            }
+
+            const base64Image = canvas.toDataURL('image/jpeg', 0.85);
+
+            // Disable button
+            scanBtn.disabled = true;
+            scanBtnText.textContent = '⏳ Processing…';
+
+            try {
+                const response = await fetch('/api/face-attendance/scan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showResult('✅ ' + data.message, 'success');
+                    addLog(data.worker.name, data.message, 'success');
+                } else {
+                    showResult('❌ ' + (data.message || data.error), 'error');
+                    addLog('Unknown', data.message || data.error, 'error');
+                }
+            } catch (error) {
+                console.error('Scan error:', error);
+                showResult('Server error. Make sure Node server and Python API are running.', 'error');
+            } finally {
+                setTimeout(() => {
+                    scanBtn.disabled = false;
+                    scanBtnText.textContent = currentMode === 'cctv'
+                        ? 'Mark Attendance (CCTV Scan)'
+                        : 'Mark Attendance (Scan Face)';
+                }, 3000);
+            }
+        }
+
+        // ══════════════════════════════════════
+        // HELPERS
+        // ══════════════════════════════════════
+        function showResult(message, type) {
+            resultBox.textContent = message;
+            resultBox.className = `result-box result-${type}`;
+            resultBox.style.display = 'block';
+        }
+        function hideResult() {
+            resultBox.style.display = 'none';
+        }
+
+        function addLog(name, message, type) {
+            const container = document.getElementById('activityLog');
+            // Remove empty placeholder
+            const empty = container.querySelector('.log-empty');
+            if (empty) empty.remove();
+
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const logItem = document.createElement('div');
+            logItem.className = `log-item log-${type}`;
+            logItem.innerHTML = `
+                <div>
+                    <div class="log-text">${name}</div>
+                    <div class="log-msg">${message}</div>
+                </div>
+                <div class="log-time">${time}</div>
+            `;
+            container.insertBefore(logItem, container.firstChild);
+        }
+
+        // ══════════════════════════════════════
+        // INIT — Start in webcam mode by default
+        // ══════════════════════════════════════
+        getCameras();
+    </script>
+
+    <script src="auth.js"></script>
+</body>
+</html>

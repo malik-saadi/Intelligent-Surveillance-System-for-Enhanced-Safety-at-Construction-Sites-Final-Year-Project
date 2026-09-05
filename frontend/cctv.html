@@ -1,0 +1,942 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV Live Feed</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #121212;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .header {
+            background: #1E1E1E;
+            padding: 20px 30px;
+            border: 1px solid #333;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #FFC107;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .camera-title {
+            color: #9CA3AF;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .status-badge {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-badge.live {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+
+        .recording-dot {
+            width: 8px;
+            height: 8px;
+            background: currentColor;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 500px;
+        }
+
+        .video-container {
+            width: 100%;
+            max-width: 900px;
+            background: #1E1E1E;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+        }
+
+        .camera-feed {
+            position: relative;
+            background: #000;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .feed-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.6) 100%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        #videoPlayer {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .feed-placeholder {
+            position: absolute;
+            color: #9CA3AF;
+            font-size: 18px;
+            text-align: center;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #1E1E1E !important;
+            width: 100%;
+            height: 100%;
+        }
+
+        .feed-placeholder.hidden {
+            display: none;
+        }
+
+        .feed-placeholder .icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .live-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(239, 68, 68, 0.95);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 3;
+        }
+
+        .timestamp {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #FFC107;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            z-index: 3;
+            border: 1px solid #333;
+        }
+
+        .camera-info-bar {
+            background: #1E1E1E;
+            padding: 20px 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            border-top: 1px solid #333;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .info-label {
+            color: #9CA3AF;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            color: #F3F4F6;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 193, 7, 0.2);
+            color: #FFC107;
+            border: 1px solid #FFC107;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            width: fit-content;
+        }
+
+        .error-message {
+            color: #ef4444;
+            font-size: 13px;
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            border-radius: 4px;
+        }
+
+        /* ===== FALL ALARM BANNER ===== */
+        #fallAlarmBanner {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 9999;
+            background: linear-gradient(90deg, #7f0000, #cc0000, #7f0000);
+            background-size: 200% 100%;
+            animation: alarmSlide 1s linear infinite;
+            padding: 18px 30px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            box-shadow: 0 4px 30px rgba(255,0,0,0.6);
+            border-bottom: 3px solid #ff4444;
+        }
+        #fallAlarmBanner.active {
+            display: flex;
+        }
+        @keyframes alarmSlide {
+            0%   { background-position: 0% 0%; }
+            100% { background-position: 200% 0%; }
+        }
+        .alarm-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .alarm-icon {
+            font-size: 36px;
+            animation: alarmPulse 0.6s ease-in-out infinite alternate;
+        }
+        @keyframes alarmPulse {
+            from { transform: scale(1);   opacity: 1; }
+            to   { transform: scale(1.2); opacity: 0.7; }
+        }
+        .alarm-text h2 {
+            color: #fff;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin: 0 0 3px;
+            text-shadow: 0 0 12px rgba(255,255,255,0.6);
+        }
+        .alarm-text p {
+            color: rgba(255,255,255,0.85);
+            font-size: 13px;
+            margin: 0;
+        }
+        #alarmTimeEl {
+            color: #ffe4e4;
+            font-size: 12px;
+            font-family: monospace;
+            margin-top: 3px;
+        }
+        #stopAlarmBtn {
+            padding: 12px 28px;
+            background: #fff;
+            color: #cc0000;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        #stopAlarmBtn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 22px rgba(0,0,0,0.4);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                min-height: 300px;
+            }
+
+            .video-container {
+                max-width: 100%;
+            }
+
+            .camera-info-bar {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+                padding: 15px 20px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ===== FALL DETECTION ALARM BANNER ===== -->
+<div id="fallAlarmBanner" role="alert" aria-live="assertive">
+    <div class="alarm-left">
+        <div class="alarm-icon">🚨</div>
+        <div class="alarm-text">
+            <h2>⚠ FALL DETECTED — EMERGENCY</h2>
+            <p>A worker has fallen. Immediate assistance required.</p>
+            <div id="alarmTimeEl"></div>
+        </div>
+    </div>
+    <button id="stopAlarmBtn" onclick="stopAlarm()">✔ Stop Alarm &amp; Acknowledge</button>
+</div>
+    <div class="header">
+        <div class="header-left">
+            <div class="logo">
+                <i class="fa-solid fa-video"></i> CCTV Live
+            </div>
+            <div class="camera-title">Camera 1 - Main Entrance</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <select id="cameraSelect" style="padding: 8px 14px; background: rgba(30,41,59,0.8); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">
+                <option value="">Loading...</option>
+            </select>
+            <button id="manageCamerasBtn" style="padding: 8px 14px; background: rgba(30,41,59,0.8); color: #FFC107; border: 1px solid rgba(255,193,7,0.4); border-radius: 6px; font-size: 13px; cursor: pointer;" title="Manage Cameras">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+            <div class="status-badge" id="statusBadge">
+                <span class="recording-dot"></span>
+                CONNECTING
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Management Modal -->
+    <div id="cameraModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; justify-content:center; align-items:center;">
+        <div style="background:#1E1E1E; padding:30px; border-radius:12px; width:500px; max-width:90%; border:1px solid #333; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="color:#FFC107; font-size:20px; margin:0;"><i class="fa-solid fa-video"></i> Manage Cameras</h2>
+                <button id="closeModalBtn" style="background:none; border:none; color:#9CA3AF; font-size:28px; cursor:pointer; line-height:1;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom:25px;">
+                <h3 style="color:#F3F4F6; font-size:15px; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:8px;">Add New Camera</h3>
+                <input type="text" id="newCamName" placeholder="Camera Name (e.g. Zone A)" style="width:100%; padding:12px; margin-bottom:10px; background:#111; border:1px solid #333; color:#F3F4F6; border-radius:6px; font-size:14px;">
+                <input type="text" id="newCamLocation" placeholder="Location (e.g. Main Gate)" style="width:100%; padding:12px; margin-bottom:10px; background:#111; border:1px solid #333; color:#F3F4F6; border-radius:6px; font-size:14px;">
+                
+                <select id="newCamType" style="width:100%; padding:12px; margin-bottom:10px; background:#111; border:1px solid #333; color:#F3F4F6; border-radius:6px; font-size:14px;">
+                    <option value="webcam">Webcam (USB/Laptop)</option>
+                    <option value="cctv">CCTV Camera (RTSP)</option>
+                </select>
+                
+                <input type="text" id="newCamSource" placeholder="Webcam ID (e.g. 0 or 1)" style="width:100%; padding:12px; margin-bottom:10px; background:#111; border:1px solid #333; color:#F3F4F6; border-radius:6px; font-size:14px;">
+                
+                <button id="addCameraBtn" style="width:100%; padding:12px; background:#FFC107; color:#121212; border:none; border-radius:6px; font-weight:bold; font-size:15px; cursor:pointer; transition:background 0.2s;">+ Add Camera</button>
+                <div id="addCamMsg" style="margin-top:10px; font-size:13px; text-align:center;"></div>
+            </div>
+
+            <div>
+                <h3 style="color:#F3F4F6; font-size:15px; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:8px;">Existing Cameras</h3>
+                <div id="cameraList" style="max-height:200px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:5px;">
+                    <!-- Camera items will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="video-container">
+            <div class="camera-feed" style="background:#000;">
+                <div class="live-indicator" style="z-index: 10;">
+                    <span class="recording-dot" style="animation: pulse 1s infinite;"></span>
+                    AI OVERLAY ACTIVE
+                </div>
+                <div class="timestamp" id="timestamp" style="z-index: 10;">00:00:00</div>
+                
+                <!-- MJPEG Native Stream injected directly from Python -->
+                <img id="videoPlayer" src="http://127.0.0.1:5001/video_feed" style="width: 100%; height: 100%; object-fit: contain; position: absolute; top: 0; left: 0;" onerror="handleStreamError()" />
+                
+                <div class="feed-placeholder" id="loadingPlaceholder">
+                    <div class="icon"><i class="fa-solid fa-robot"></i></div>
+                    <div id="statusText" style="color: #FFC107; font-weight:bold;">Initializing Dual AI Stream...</div>
+                    <div style="font-size: 14px; color: #9CA3AF; margin-top: 10px;">Please ensure `intelligent_cctv.py` is running</div>
+                </div>
+            </div>
+            
+            <div class="camera-info-bar">
+                <div class="info-item">
+                    <div class="info-label">Location</div>
+                    <div class="info-value">Main Gate Entry</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Resolution</div>
+                    <div class="info-value">1920×1080 HD</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">YOLO Tracking</div>
+                    <div class="info-value">Smooth Sync</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">AI Status</div>
+                    <div class="info-value">
+                        <span class="ai-badge" id="aiStatusBadge"><i class="fa-solid fa-bolt"></i> ONLINE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ========== AUTH CHECK ==========
+    window.addEventListener('load', () => {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+    });
+    function handleLogout() {
+        if (confirm('Are you sure you want to logout?')) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+        }
+    }
+    // ========== END AUTH ==========
+    </script>
+
+    <script>
+        function updateTimestamp() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('timestamp').textContent = timeString;
+        }
+
+        updateTimestamp();
+        setInterval(updateTimestamp, 1000);
+
+        const img = document.getElementById('videoPlayer');
+        const placeholder = document.getElementById('loadingPlaceholder');
+        const statusBadge = document.getElementById('statusBadge');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const manageCamerasBtn = document.getElementById('manageCamerasBtn');
+        const cameraModal = document.getElementById('cameraModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        let camerasData = [];
+        
+        async function loadCameras() {
+            try {
+                const res = await fetch('/api/cameras');
+                const data = await res.json();
+                if (data.success) {
+                    camerasData = data.cameras;
+                    
+                    // Update Dropdown
+                    cameraSelect.innerHTML = '';
+                    if (camerasData.length === 0) {
+                        const opt = document.createElement('option');
+                        opt.value = '';
+                        opt.textContent = 'No camera found, add camera';
+                        cameraSelect.appendChild(opt);
+                        
+                        // Tell python to show 'NO CAMERA FOUND'
+                        fetch('http://127.0.0.1:5001/set_camera', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source: 'none' })
+                        }).catch(()=>{});
+                        
+                        document.querySelector('.camera-title').textContent = 'No Camera Selected';
+                    } else {
+                        camerasData.forEach(cam => {
+                            const opt = document.createElement('option');
+                            opt.value = cam.camera_source;
+                            opt.setAttribute('data-id', cam.camera_id);
+                            opt.textContent = cam.camera_name;
+                            cameraSelect.appendChild(opt);
+                        });
+                    }
+                    
+                    // Update Modal List
+                    const cameraList = document.getElementById('cameraList');
+                    cameraList.innerHTML = '';
+                    camerasData.forEach(cam => {
+                        const div = document.createElement('div');
+                        div.style = 'display:flex; justify-content:space-between; align-items:center; background:#111; padding:10px 15px; border-radius:6px; border:1px solid #333;';
+                        div.innerHTML = `
+                            <div>
+                                <div style="color:#F3F4F6; font-size:14px; font-weight:600;">${cam.camera_name}</div>
+                                <div style="color:#9CA3AF; font-size:12px;">${cam.location} • Source: <span style="font-family:monospace; color:#FFC107;">${cam.camera_source.length > 25 ? cam.camera_source.substring(0,25)+'...' : cam.camera_source}</span></div>
+                            </div>
+                            <div style="display:flex; gap: 8px;">
+                                <button onclick="editCamera(${cam.camera_id}, '${cam.camera_source}')" style="background:rgba(255,193,7,0.2); color:#FFC107; border:1px solid #FFC107; border-radius:4px; padding:6px 12px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;" title="Edit Camera Source"><i class="fa-solid fa-pen"></i></button>
+                                <button onclick="deleteCamera(${cam.camera_id})" style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444; border-radius:4px; padding:6px 12px; cursor:pointer; font-size:12px; font-weight:bold; transition:all 0.2s;" title="Delete Camera"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                        `;
+                        cameraList.appendChild(div);
+                    });
+                    
+                    // Sync dropdown with active camera in python
+                    fetch('http://127.0.0.1:5001/get_camera')
+                        .then(r => r.json())
+                        .then(pyData => { 
+                            let matched = false;
+                            for (let i=0; i < cameraSelect.options.length; i++) {
+                                if (cameraSelect.options[i].value == pyData.camera) {
+                                    cameraSelect.selectedIndex = i;
+                                    matched = true;
+                                    break;
+                                }
+                            }
+                            
+                            // If python has NO camera selected but we have cameras, 
+                            // force switch to the first available camera.
+                            if (!matched && camerasData.length > 0) {
+                                cameraSelect.selectedIndex = 0;
+                                cameraSelect.dispatchEvent(new Event('change'));
+                            }
+                        })
+                        .catch(() => {});
+                }
+            } catch(e) {
+                console.error('Error loading cameras:', e);
+                cameraSelect.innerHTML = '<option value="">Error loading cameras</option>';
+            }
+        }
+        
+        loadCameras();
+
+        // Camera Management Modal Handlers
+        manageCamerasBtn.addEventListener('click', () => { cameraModal.style.display = 'flex'; });
+        closeModalBtn.addEventListener('click', () => { cameraModal.style.display = 'none'; document.getElementById('addCamMsg').textContent = ''; });
+        
+        document.getElementById('newCamType').addEventListener('change', (e) => {
+            const srcInput = document.getElementById('newCamSource');
+            if (e.target.value === 'webcam') {
+                srcInput.placeholder = "Webcam ID (e.g. 0 or 1)";
+            } else {
+                srcInput.placeholder = "RTSP Link (e.g. rtsp://...)";
+            }
+        });
+
+        document.getElementById('addCameraBtn').addEventListener('click', async () => {
+            const name = document.getElementById('newCamName').value;
+            const loc = document.getElementById('newCamLocation').value;
+            const src = document.getElementById('newCamSource').value;
+            const msgEl = document.getElementById('addCamMsg');
+            
+            if(!name || !loc || !src) {
+                msgEl.textContent = 'Please fill all fields.';
+                msgEl.style.color = '#ef4444';
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/cameras', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ camera_name: name, location: loc, camera_source: src })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    msgEl.textContent = 'Camera added successfully!';
+                    msgEl.style.color = '#22c55e';
+                    document.getElementById('newCamName').value = '';
+                    document.getElementById('newCamLocation').value = '';
+                    document.getElementById('newCamSource').value = '';
+                    loadCameras();
+                } else {
+                    msgEl.textContent = data.message;
+                    msgEl.style.color = '#ef4444';
+                }
+            } catch(e) {
+                msgEl.textContent = 'Server error.';
+                msgEl.style.color = '#ef4444';
+            }
+        });
+        
+        window.deleteCamera = async function(id) {
+            if(!confirm('Delete this camera?')) return;
+            try {
+                // Check if deleting active camera
+                const currentOpt = cameraSelect.options[cameraSelect.selectedIndex];
+                const isActive = currentOpt && currentOpt.getAttribute('data-id') == id;
+                
+                const res = await fetch('/api/cameras/' + id, { method: 'DELETE' });
+                const data = await res.json();
+                if(data.success) {
+                    if (isActive) {
+                        await fetch('http://127.0.0.1:5001/set_camera', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source: 'none' })
+                        }).catch(()=>{});
+                    }
+                    loadCameras();
+                } else {
+                    alert(data.message);
+                }
+            } catch(e) {
+                alert('Error deleting camera.');
+            }
+        };
+
+        window.editCamera = async function(id, oldSource) {
+            const newSource = prompt('Enter the new camera IP / RTSP link:', oldSource);
+            if(newSource && newSource !== oldSource) {
+                try {
+                    const res = await fetch('/api/cameras/' + id, { 
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ camera_source: newSource })
+                    });
+                    const data = await res.json();
+                    if(data.success) {
+                        alert('Camera updated successfully! Re-select it from the dropdown.');
+                        loadCameras();
+                    } else {
+                        alert(data.message);
+                    }
+                } catch(e) {
+                    alert('Error updating camera.');
+                }
+            }
+        };
+
+        // Camera switch handler
+        cameraSelect.addEventListener('change', async () => {
+            const source = cameraSelect.value;
+            if(!source) return;
+            statusBadge.className = 'status-badge';
+            statusBadge.innerHTML = '<span class="recording-dot"></span> SWITCHING...';
+            
+            // Show placeholder to hide frozen frame during switch
+            img.style.display = 'none';
+            placeholder.classList.remove('hidden');
+            document.getElementById('statusText').innerHTML = "Switching camera, please wait...";
+            document.getElementById('statusText').style.color = '#FFC107';
+            
+            try {
+                await fetch('http://127.0.0.1:5001/set_camera', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source: source })
+                });
+                // Update camera title in UI
+                const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
+                document.querySelector('.camera-title').textContent = selectedOption.textContent;
+                
+                // Find location for selected camera
+                const camData = camerasData.find(c => c.camera_source === source);
+                if(camData) {
+                    document.querySelectorAll('.info-value')[0].textContent = camData.location;
+                }
+
+                // Reload the MJPEG stream with a cache-busting param
+                setTimeout(() => {
+                    img.src = 'http://127.0.0.1:5001/video_feed?' + new Date().getTime();
+                    img.style.display = 'block';
+                    placeholder.classList.add('hidden');
+                    
+                    statusBadge.className = 'status-badge status-live';
+                    statusBadge.innerHTML = '<span class="recording-dot"></span> LIVE DETECT';
+                }, 2000);
+            } catch(e) {
+                console.error('Error setting camera:', e);
+                alert("Failed to connect to the AI Camera Server! Make sure you are running 'python Face_recognition\\intelligent_cctv.py' in your terminal.");
+                document.getElementById('statusText').innerHTML = "AI Server Offline";
+                document.getElementById('statusText').style.color = '#ef4444';
+            }
+        });
+
+        // Hide placeholder once stream successfully loads a frame
+        img.onload = function() {
+            img.style.display = 'block';
+            placeholder.classList.add('hidden');
+            statusBadge.className = 'status-badge live';
+            statusBadge.innerHTML = '<span class="recording-dot"></span> LIVE AI FEED';
+        };
+
+        function handleStreamError() {
+            img.style.display = 'none';
+            placeholder.classList.remove('hidden');
+            document.getElementById('statusText').innerHTML = "Cannot connect to Stream.<br>Run <code>python intelligent_cctv.py</code>";
+            document.getElementById('statusText').style.color = '#ef4444';
+            statusBadge.className = 'status-badge';
+            statusBadge.innerHTML = '<span class="recording-dot" style="background:#ef4444;"></span> OFFLINE';
+            
+            // Try to reconnect every 3 seconds
+            setTimeout(() => {
+                img.style.display = 'block';
+                img.src = "http://127.0.0.1:5001/video_feed?" + new Date().getTime();
+            }, 3000);
+        }
+    </script>
+    <script src="auth.js"></script>
+
+    <script>
+    // ============================================================
+    //  FALL DETECTION ALARM SYSTEM
+    // ============================================================
+    const PYTHON_URL  = 'http://127.0.0.1:5001';
+    const NODE_API    = 'http://localhost:4000/api';
+    const POLL_MS     = 1000; // poll every 1 second
+
+    let alarmActive   = false;   // is alarm currently sounding?
+    let alarmLoggedId = null;    // DB alert_id of current fall log
+    let alarmStart    = null;    // Date when alarm started
+    let audioCtx      = null;    // Web Audio context
+    let sirenNodes    = [];      // nodes to stop later
+    let pollTimer     = null;
+
+    // --- Build a rich siren sound with Web Audio API ---
+    function startSiren() {
+        if (audioCtx) return; // already playing
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function makeSirenLayer(baseFreq, speed, gain) {
+            // LFO modulates oscillator pitch up and down
+            const osc    = audioCtx.createOscillator();
+            const lfo    = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            const gainNode = audioCtx.createGain();
+
+            osc.type    = 'sawtooth';
+            osc.frequency.value = baseFreq;
+
+            lfo.type    = 'sine';
+            lfo.frequency.value = speed;   // sweeps per second
+            lfoGain.gain.value  = baseFreq * 0.55; // sweep depth
+            gainNode.gain.value = gain;
+
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            osc.start();
+            lfo.start();
+            sirenNodes.push(osc, lfo, lfoGain, gainNode);
+        }
+
+        // Two layers: deep siren + high overtone
+        makeSirenLayer(440, 1.8, 0.18);
+        makeSirenLayer(880, 2.2, 0.10);
+
+        // Rhythmic click layer for urgency
+        function scheduleClick() {
+            if (!audioCtx) return;
+            const buf  = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.05, audioCtx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (audioCtx.sampleRate * 0.01));
+            }
+            const src  = audioCtx.createBufferSource();
+            const gain = audioCtx.createGain();
+            src.buffer      = buf;
+            gain.gain.value = 0.3;
+            src.connect(gain);
+            gain.connect(audioCtx.destination);
+            src.start();
+            if (audioCtx) setTimeout(scheduleClick, 500); // click every 500ms
+        }
+        scheduleClick();
+    }
+
+    function stopSiren() {
+        if (!audioCtx) return;
+        sirenNodes.forEach(n => { try { n.disconnect(); } catch(e){} });
+        sirenNodes = [];
+        try { audioCtx.close(); } catch(e){}
+        audioCtx = null;
+    }
+
+    // --- Log fall to health_alerts in DB (called once per fall event) ---
+    async function logFallToDatabase() {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${NODE_API}/health`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    worker_id:   null,
+                    alert_type:  'Fall Detected',
+                    severity:    'critical',
+                    description: 'YOLO AI model detected a worker fall on the CCTV feed. Immediate response required.',
+                    location:    'CCTV Camera Feed',
+                    camera_id:   null
+                })
+            });
+            const data = await response.json();
+            return data.alert_id || null;
+        } catch(e) {
+            console.error('Failed to log fall to database:', e);
+            return null;
+        }
+    }
+
+    // --- Resolve the health_alert when admin stops the alarm ---
+    async function resolveAlertInDatabase(alertId) {
+        if (!alertId) return;
+        try {
+            const elapsed = alarmStart ? Math.round((Date.now() - alarmStart) / 1000) : 0;
+            const token   = localStorage.getItem('token');
+            await fetch(`${NODE_API}/health/${alertId}/resolve`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ response_time: elapsed })
+            });
+        } catch(e) {
+            console.error('Failed to resolve health alert:', e);
+        }
+    }
+
+    // --- Trigger alarm for the first time ---
+    async function triggerAlarm() {
+        alarmActive = true;
+        alarmStart  = Date.now();
+
+        // Show banner
+        const banner = document.getElementById('fallAlarmBanner');
+        banner.classList.add('active');
+        updateAlarmTimer();
+
+        // Play siren
+        startSiren();
+
+        // Log to DB once
+        alarmLoggedId = await logFallToDatabase();
+
+        console.warn('[ALARM] Fall detected — logged to DB, alert_id:', alarmLoggedId);
+    }
+
+    // --- Update elapsed timer inside banner ---
+    function updateAlarmTimer() {
+        if (!alarmActive) return;
+        const elapsed = Math.round((Date.now() - alarmStart) / 1000);
+        const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+        const s = String(elapsed % 60).padStart(2,'0');
+        const el = document.getElementById('alarmTimeEl');
+        if (el) el.textContent = `⏱ Alert active for ${m}:${s} — Detected at ${new Date(alarmStart).toLocaleTimeString()}`;
+        if (alarmActive) setTimeout(updateAlarmTimer, 1000);
+    }
+
+    // --- Admin clicks STOP button ---
+    async function stopAlarm() {
+        if (!alarmActive) return;
+        alarmActive = false;
+
+        // Hide banner
+        document.getElementById('fallAlarmBanner').classList.remove('active');
+
+        // Stop sound
+        stopSiren();
+
+        // Resolve in DB
+        await resolveAlertInDatabase(alarmLoggedId);
+        alarmLoggedId = null;
+        alarmStart    = null;
+
+        console.info('[ALARM] Alarm acknowledged and stopped by admin.');
+    }
+
+    // --- Poll Python /status every second ---
+    async function pollStatus() {
+        try {
+            const res  = await fetch(`${PYTHON_URL}/status`, { cache: 'no-store' });
+            const data = await res.json();
+
+            if (data.fall_detected && !alarmActive) {
+                // New fall detected — trigger alarm once
+                await triggerAlarm();
+            }
+            // Note: we do NOT auto-stop the alarm when fall leaves frame.
+            // Only the admin STOP button stops it.
+        } catch(e) {
+            // Python server may not be running — silently ignore
+        }
+    }
+
+    // Start polling after page loads
+    window.addEventListener('load', () => {
+        pollTimer = setInterval(pollStatus, POLL_MS);
+    });
+    </script>
+</body>
+</html>

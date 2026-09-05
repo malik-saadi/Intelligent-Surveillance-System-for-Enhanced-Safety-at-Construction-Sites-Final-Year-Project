@@ -1,0 +1,18 @@
+# --- STANDARD DEPENDENCIES ---
+deepface
+opencv-python
+tf-keras
+tqdm
+flask
+flask-cors
+ultralytics
+pandas
+tensorflow-directml-plugin
+# --- GPU ACCELERATION (OPTIONAL) ---
+# If you have an NVIDIA GPU, run these commands manually:
+#
+# 1. For YOLO GPU Support:
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# 2. For DeepFace GPU Support:
+# pip install tensorflow[and-cuda]
